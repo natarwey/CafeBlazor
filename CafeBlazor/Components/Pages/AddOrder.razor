@@ -1,0 +1,40 @@
+﻿@page "/add-order"
+@using CafeBlazor.ApiRequest.Model
+@inject HttpClient Http
+@inject NavigationManager Navigation
+
+<h3>Add New Order</h3>
+
+<EditForm Model="@newOrder" OnValidSubmit="@HandleValidSubmit" @formname="addOrderForm">
+    <DataAnnotationsValidator />
+    <ValidationSummary />
+
+    <div>
+        <label>Table Number:</label>
+        <InputNumber @bind-Value="newOrder.TableNumber" />
+    </div>
+    <div>
+        <label>Waiter ID:</label>
+        <InputNumber @bind-Value="newOrder.WaiterId" />
+    </div>
+    <div>
+        <label>Order Date:</label>
+        <InputDate @bind-Value="newOrder.OrderDate" />
+    </div>
+    <div>
+        <label>Total Amount:</label>
+        <InputNumber @bind-Value="newOrder.TotalAmount" />
+    </div>
+
+    <button type="submit">Submit</button>
+</EditForm>
+
+@code {
+    private Order newOrder = new();
+
+    private async Task HandleValidSubmit()
+    {
+        await Http.PostAsJsonAsync("api/Orders", newOrder);
+        Navigation.NavigateTo("/orders");
+    }
+}

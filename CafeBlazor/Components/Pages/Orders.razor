@@ -1,0 +1,75 @@
+﻿@page "/orders"
+@using CafeBlazor.ApiRequest.Model
+@using CafeBlazor.ApiRequest.Services
+@inject ApiRequestService ApiRequestService
+
+<h3>Orders</h3>
+
+@if (orders == null)
+{
+    <p>Loading...</p>
+}
+else if (!orders.Any())
+{
+    <p>No orders found.</p>
+}
+else
+{
+    <table class="table">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Table Number</th>
+                <th>Waiter ID</th>
+                <th>Order Date</th>
+                <th>Total Amount</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var order in orders)
+            {
+                <tr>
+                    <td>@order.Id</td>
+                    <td>@order.TableNumber</td>
+                    <td>@order.WaiterId</td>
+                    <td>@order.OrderDate.ToShortDateString()</td>
+                    <td>@order.TotalAmount</td>
+                    <td>
+                        <a href="/edit-order/@order.Id">Edit</a> |
+                        <button @onclick="() => DeleteOrder(order.Id)">Delete</button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private List<Order> orders;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            orders = await ApiRequestService.GetOrdersAsync();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading orders: {ex.Message}");
+        }
+    }
+
+    private async Task DeleteOrder(int id)
+    {
+        try
+        {
+            await ApiRequestService.DeleteOrderAsync(id);
+            orders = await ApiRequestService.GetOrdersAsync();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error deleting order: {ex.Message}");
+        }
+    }
+}

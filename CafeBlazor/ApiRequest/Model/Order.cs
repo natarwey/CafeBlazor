@@ -1,0 +1,11 @@
+﻿namespace CafeBlazor.ApiRequest.Model
+{
+    public class Order
+    {
+        public int Id { get; set; }
+        public int TableNumber { get; set; }
+        public int WaiterId { get; set; }
+        public DateTime OrderDate { get; set; }
+        public decimal TotalAmount { get; set; }
+    }
+}
