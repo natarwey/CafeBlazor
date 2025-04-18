@@ -1,5 +1,6 @@
 using CafeBlazor.ApiRequest.Services;
 using CafeBlazor.Components;
+using System.Text.Json;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -8,7 +9,12 @@ builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 
 builder.Services.AddScoped<ApiRequestService>();
-builder.Services.AddScoped(sp => new HttpClient { BaseAddress = new Uri("https://localhost:7091") });
+builder.Services.AddScoped(sp => new HttpClient { BaseAddress = new Uri(builder.Configuration["ApiBaseUrl"] ?? "https://localhost:7091") });
+builder.Services.Configure<JsonSerializerOptions>(options =>
+{
+    options.PropertyNameCaseInsensitive = true;
+    options.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
+});
 
 var app = builder.Build();
 

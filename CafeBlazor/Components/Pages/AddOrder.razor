@@ -5,36 +5,105 @@
 
 <h3>Add New Order</h3>
 
-<EditForm Model="@newOrder" OnValidSubmit="@HandleValidSubmit" @formname="addOrderForm">
+<EditForm Model="@newOrder" OnValidSubmit="@HandleValidSubmit">
     <DataAnnotationsValidator />
     <ValidationSummary />
 
-    <div>
-        <label>Table Number:</label>
-        <InputNumber @bind-Value="newOrder.TableNumber" />
-    </div>
-    <div>
-        <label>Waiter ID:</label>
-        <InputNumber @bind-Value="newOrder.WaiterId" />
-    </div>
-    <div>
-        <label>Order Date:</label>
-        <InputDate @bind-Value="newOrder.OrderDate" />
-    </div>
-    <div>
-        <label>Total Amount:</label>
-        <InputNumber @bind-Value="newOrder.TotalAmount" />
+    <div class="mb-3">
+        <label class="form-label">Table Number:</label>
+        <InputNumber class="form-control" @bind-Value="newOrder.TableNumber" />
     </div>
 
-    <button type="submit">Submit</button>
+    <div class="mb-3">
+        <label class="form-label">Waiter ID:</label>
+        <InputNumber class="form-control" @bind-Value="newOrder.WaiterId" />
+    </div>
+
+    <div class="mb-3">
+        <h5>Order Items</h5>
+        @for (int i = 0; i < newOrder.OrderItems.Count; i++)
+        {
+            <div class="row mb-2">
+                <div class="col">
+                    <label>Menu Item ID:</label>
+                    <InputNumber class="form-control" @bind-Value="newOrder.OrderItems[i].MenuItemId" />
+                </div>
+                <div class="col">
+                    <label>Quantity:</label>
+                    <InputNumber class="form-control" @bind-Value="newOrder.OrderItems[i].Quantity" />
+                </div>
+                <div class="col">
+                    <button type="button" class="btn btn-danger mt-4"
+                            @onclick="() => RemoveItem(i)">
+                        Remove
+                    </button>
+                </div>
+            </div>
+        }
+        <button type="button" class="btn btn-secondary" @onclick="AddItem">Add Item</button>
+    </div>
+
+    <button type="submit" class="btn btn-primary">Create Order</button>
 </EditForm>
 
 @code {
-    private Order newOrder = new();
+    private Order newOrder = new()
+    {
+        OrderDate = DateTime.Now,
+        OrderItems = new List<OrderItem>()
+    };
+    
+    private List<OrderItem> orderItems = new();
+    private List<MenuItem> menuItems = new();
+    private List<Waiter> waiters = new();
+    private string? errorMessage;
+
+    // protected override async Task OnInitializedAsync()
+    // {
+    //     try
+    //     {
+    //         menuItems = await Http.GetFromJsonAsync<List<MenuItem>>("api/MenuItems")
+    //                   ?? new List<MenuItem>();
+    //         waiters = await Http.GetFromJsonAsync<List<Waiter>>("api/Waiters")
+    //                 ?? new List<Waiter>();
+    //     }
+    //     catch (HttpRequestException ex)
+    //     {
+    //         errorMessage = $"Failed to load data: {ex.StatusCode}";
+    //         Console.WriteLine($"API Error: {ex.Message}");
+    //     }
+    // }
+
+    private void AddItem() => orderItems.Add(new OrderItem());
+    private void RemoveItem(int index) => newOrder.OrderItems.RemoveAt(index);
 
     private async Task HandleValidSubmit()
     {
-        await Http.PostAsJsonAsync("api/Orders", newOrder);
+        errorMessage = null;
+
+        // Валидация
+        if (orderItems.Count == 0 || !orderItems.Any(oi => oi.MenuItemId > 0 && oi.Quantity > 0))
+        {
+            errorMessage = "Please add at least one valid order item";
+            return;
+        }
+
+        try
+        {
+            var response = await Http.PostAsJsonAsync("api/Orders", newOrder);
+            if (response.IsSuccessStatusCode)
+            {
+                Navigation.NavigateTo("/orders");
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error creating order: {ex.Message}");
+        }
+    }
+
+    private void Cancel()
+    {
         Navigation.NavigateTo("/orders");
     }
 }

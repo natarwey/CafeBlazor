@@ -1,48 +1,205 @@
-﻿@page "/edit-order/{id}"
+﻿@page "/edit-order/{Id:int}"
 @using CafeBlazor.ApiRequest.Model
 @inject HttpClient Http
 @inject NavigationManager Navigation
+@inject ILogger<EditOrder> Logger
 
 <h3>Edit Order</h3>
 
-<EditForm Model="@order" OnValidSubmit="@HandleValidSubmit">
-    <DataAnnotationsValidator />
-    <ValidationSummary />
+@if (isLoading)
+{
+    <div class="spinner-border text-primary" role="status">
+        <span class="visually-hidden">Loading...</span>
+    </div>
+}
+else if (!string.IsNullOrEmpty(errorMessage))
+{
+    <div class="alert alert-danger">
+        @errorMessage
+        <button class="btn btn-sm btn-outline-secondary ms-2" @onclick="RetryLoading">Retry</button>
+    </div>
+}
+else if (order == null)
+{
+    <div class="alert alert-warning">Order not found</div>
+}
+else
+{
+    <EditForm Model="@order" OnValidSubmit="@HandleValidSubmit">
+        <DataAnnotationsValidator />
+        <ValidationSummary />
 
-    <div>
-        <label>Table Number:</label>
-        <InputNumber @bind-Value="order.TableNumber" />
-    </div>
-    <div>
-        <label>Waiter ID:</label>
-        <InputNumber @bind-Value="order.WaiterId" />
-    </div>
-    <div>
-        <label>Order Date:</label>
-        <InputDate @bind-Value="order.OrderDate" />
-    </div>
-    <div>
-        <label>Total Amount:</label>
-        <InputNumber @bind-Value="order.TotalAmount" />
-    </div>
+        <div class="mb-3">
+            <label class="form-label">Table Number:</label>
+            <InputNumber class="form-control" @bind-Value="order.TableNumber" />
+        </div>
 
-    <button type="submit">Save</button>
-</EditForm>
+        <div class="mb-3">
+            <label class="form-label">Waiter:</label>
+            <InputSelect class="form-select" @bind-Value="order.WaiterId">
+                @if (waiters == null || !waiters.Any())
+                {
+                    <option value="">Loading waiters...</option>
+                }
+                else
+                {
+                    @foreach (var waiter in waiters)
+                    {
+                        <option value="@waiter.Id">@waiter.Name</option>
+                    }
+                }
+            </InputSelect>
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">Order Date:</label>
+            <InputDate class="form-control" @bind-Value="order.OrderDate" />
+        </div>
+
+        <div class="mb-3">
+            <h5>Order Items</h5>
+            @if (order.OrderItems == null || !order.OrderItems.Any())
+            {
+                <p class="text-muted">No items in this order</p>
+            }
+            else
+            {
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>Item</th>
+                                <th>Quantity</th>
+                                <th>Price</th>
+                                <th>Total</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var item in order.OrderItems)
+                            {
+                                var menuItem = menuItems?.FirstOrDefault(m => m.Id == item.MenuItemId);
+                                <tr>
+                                    <td>@(menuItem?.Name ?? "Unknown")</td>
+                                    <td>@item.Quantity</td>
+                                    <td>@(menuItem?.Price.ToString("C") ?? "N/A")</td>
+                                    <td>@(item.Quantity * (menuItem?.Price ?? 0)).ToString("C")</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </div>
+
+        <div class="mb-3">
+            <button type="submit" class="btn btn-primary" disabled="@isSaving">
+                @if (isSaving)
+                {
+                    <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                    <span class="visually-hidden">Saving...</span>
+                }
+                else
+                {
+                    <span>Save Changes</span>
+                }
+            </button>
+            <button type="button" class="btn btn-outline-secondary ms-2" @onclick="Cancel">Cancel</button>
+        </div>
+    </EditForm>
+}
 
 @code {
     [Parameter]
     public int Id { get; set; }
 
-    private Order order = new();
+    private Order? order;
+    private List<MenuItem>? menuItems;
+    private List<Waiter>? waiters;
+    private string? errorMessage;
+    private bool isLoading = true;
+    private bool isSaving = false;
 
-    protected override async Task OnParametersSetAsync()
+    protected override async Task OnInitializedAsync()
     {
-        order = await Http.GetFromJsonAsync<Order>($"api/Orders/{Id}");
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        try
+        {
+            isLoading = true;
+            errorMessage = null;
+            StateHasChanged();
+
+            // Загружаем данные параллельно
+            var menuItemsTask = Http.GetFromJsonAsync<List<MenuItem>>("api/MenuItems");
+            var waitersTask = Http.GetFromJsonAsync<List<Waiter>>("api/Waiters");
+            var orderTask = Http.GetFromJsonAsync<Order>($"api/Orders/{Id}");
+
+            await Task.WhenAll(menuItemsTask, waitersTask, orderTask);
+
+            menuItems = await menuItemsTask;
+            waiters = await waitersTask;
+            order = await orderTask;
+
+            if (order == null)
+            {
+                errorMessage = "Order not found";
+                Logger.LogWarning("Order with ID {OrderId} not found", Id);
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = "Failed to load order data";
+            Logger.LogError(ex, "Error loading order data for ID {OrderId}", Id);
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
     }
 
     private async Task HandleValidSubmit()
     {
-        await Http.PutAsJsonAsync($"api/Orders/{Id}", order);
+        try
+        {
+            isSaving = true;
+            StateHasChanged();
+
+            var response = await Http.PutAsJsonAsync($"api/Orders/{Id}", order);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var errorContent = await response.Content.ReadAsStringAsync();
+                errorMessage = $"Error saving order: {response.StatusCode} - {errorContent}";
+                Logger.LogError("Error saving order: {StatusCode} - {ErrorContent}", 
+                    response.StatusCode, errorContent);
+                return;
+            }
+
+            Navigation.NavigateTo("/orders");
+        }
+        catch (Exception ex)
+        {
+            errorMessage = "Error saving order changes";
+            Logger.LogError(ex, "Error saving order with ID {OrderId}", Id);
+        }
+        finally
+        {
+            isSaving = false;
+            StateHasChanged();
+        }
+    }
+
+    private void Cancel()
+    {
         Navigation.NavigateTo("/orders");
+    }
+
+    private async Task RetryLoading()
+    {
+        await LoadData();
     }
 }
